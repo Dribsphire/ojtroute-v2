@@ -48,3 +48,6 @@ if (!$instructor_user_id || !$school_id) {
     header('Location: ../login.php');
     exit();
 }
+
+// Every POST from a logged-in page must carry the CSRF token
+require_once __DIR__ . '/csrf.php';

@@ -1,5 +1,7 @@
 <?php
 session_start();
+// Login + role check + CSRF protection
+require_once __DIR__ . '/../../app/middleware/requireStudent.php';
 require_once __DIR__ . '/../../app/services/StudentService.php';
 
 $studentService = new \App\Services\StudentService();

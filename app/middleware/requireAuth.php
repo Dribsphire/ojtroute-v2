@@ -29,4 +29,5 @@ if (!$authService->isAuthenticated()) {
     exit();
 }
 
-
+// Every POST from a logged-in page must carry the CSRF token
+require_once __DIR__ . '/csrf.php';
