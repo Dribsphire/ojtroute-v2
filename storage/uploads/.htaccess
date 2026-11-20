@@ -1,0 +1,33 @@
+# Uploaded files (attendance photos, student documents, profile pictures, templates).
+# Never served directly: every request goes through public/serve_file.php, which
+# checks the login and ownership. Nothing in here can ever run as PHP.
+
+Options -Indexes
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+RemoveHandler .php .phtml .phar .php3 .php4 .php5 .php7 .php8 .pht
+RemoveType .php .phtml .phar .php3 .php4 .php5 .php7 .php8 .pht
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(.+)$ ../../public/serve_file.php?root=storage&f=$1 [L,QSA]
+</IfModule>
+
+# Without mod_rewrite, refuse everything rather than expose files
+<IfModule !mod_rewrite.c>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</IfModule>

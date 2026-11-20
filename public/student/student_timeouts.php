@@ -1,0 +1,1197 @@
+<?php
+session_start();
+require_once __DIR__ . '/../../app/services/StudentService.php';
+
+$studentService = new \App\Services\StudentService();
+$userId = $_SESSION['user_id'] ?? 0;
+$dbId = $studentService->getStudentDbId($userId);
+
+// Handle POST Request for submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+
+    $recordId = $_POST['record_id'] ?? 0;
+    $reason = $_POST['reason'] ?? '';
+    $file = $_FILES['letter'] ?? null;
+
+    $result = $studentService->submitTimeoutRequest($dbId, $recordId, $reason, $file);
+    echo json_encode($result);
+    exit;
+}
+
+// Fetch Real Data
+$timeout_data = $studentService->getMissingTimeouts($dbId);
+
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Missing Timeouts - OJTRoute System</title>
+    <link rel="icon" type="image/png" href="../images/CHMSU.png">
+    <link rel="stylesheet" href="../css/student_style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        .timeouts-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .timeouts-card {
+            background: var(--hover-clr);
+            border: 1px solid var(--line-clr);
+            border-radius: 1em;
+            padding: 1.5rem;
+        }
+
+        .header-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .header-row h1 {
+            margin: 0;
+            font-size: 1.35rem;
+        }
+
+        .header-row p {
+            margin: .45rem 0 0;
+            color: var(--secondary-text-clr);
+        }
+
+        .primary-btn {
+            background: var(--accent-clr);
+            color: #0b0d12;
+            border: 1px solid transparent;
+            padding: 0.75rem 1rem;
+            border-radius: .75em;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-weight: 700;
+            transition: transform 150ms ease, filter 150ms ease;
+            white-space: nowrap;
+        }
+
+        .primary-btn:hover {
+            filter: brightness(1.05);
+            transform: translateY(-1px);
+        }
+
+        .primary-btn:active {
+            transform: translateY(0);
+        }
+
+        .primary-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .table-wrap {
+            margin-top: 1.25rem;
+            overflow: auto;
+            border-radius: 0.9em;
+            border: 1px solid var(--line-clr);
+            background: rgba(0, 0, 0, 0.08);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: transparent;
+            min-width: 980px;
+        }
+
+        th,
+        td {
+            padding: 0.95rem;
+            text-align: left;
+            border-bottom: 1px solid var(--line-clr);
+        }
+
+        th {
+            background: rgba(0, 0, 0, 0.25);
+            color: var(--secondary-text-clr);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            letter-spacing: .04em;
+        }
+
+        td {
+            color: var(--text-clr);
+            vertical-align: top;
+        }
+
+        tbody tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: capitalize;
+            white-space: nowrap;
+        }
+
+        .status-pending {
+            background: #ffd70033;
+            color: #ffd700;
+            border: 1px solid #ffd70066;
+        }
+
+        .status-approved {
+            background: #32cd3233;
+            color: #32cd32;
+            border: 1px solid #32cd3266;
+        }
+
+        .status-rejected {
+            background: #ff333333;
+            color: #ff3333;
+            border: 1px solid #ff333366;
+        }
+
+        .file-link {
+            color: #4da6ff;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .file-link:hover {
+            text-decoration: underline;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: 1px solid var(--line-clr);
+            color: var(--secondary-text-clr);
+            padding: 0.45rem 0.7rem;
+            border-radius: .75em;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 150ms ease, transform 150ms ease;
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.04);
+            transform: translateY(-1px);
+        }
+
+        .icon-btn:active {
+            transform: translateY(0);
+        }
+
+        .icon-btn.view {
+            border-color: #4da6ff66;
+            color: #4da6ff;
+        }
+
+        .icon-btn.edit {
+            border-color: #ff8c0066;
+            color: #ff8c00;
+        }
+
+        .icon-btn.attach {
+            border-color: rgba(26, 210, 28, 0.55);
+            color: var(--accent-clr);
+        }
+
+        .muted {
+            color: var(--secondary-text-clr);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1.5rem;
+            overflow: auto;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            width: min(980px, 96vw);
+            background: var(--base-clr);
+            color: var(--text-clr);
+            border-radius: 1em;
+            padding: 1.25rem;
+            position: relative;
+            border: 1px solid var(--line-clr);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--line-clr);
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.05rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: 1px solid var(--line-clr);
+            color: var(--text-clr);
+            padding: 0.35rem 0.65rem;
+            border-radius: .75em;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding-top: 1rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        @media (max-width: 900px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                min-width: 860px;
+            }
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .field label {
+            color: var(--secondary-text-clr);
+            font-size: 0.9rem;
+        }
+
+        .field input,
+        .field select,
+        .field textarea {
+            padding: 0.75rem;
+            border-radius: .75em;
+            border: 1px solid var(--line-clr);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-clr);
+        }
+
+        .field input[readonly] {
+            background: rgba(255, 255, 255, 0.02);
+            cursor: not-allowed;
+        }
+
+        .field textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .secondary-btn {
+            background: transparent;
+            border: 1px solid var(--line-clr);
+            color: var(--text-clr);
+            padding: 0.75rem 1rem;
+            border-radius: .75em;
+            cursor: pointer;
+            transition: background 150ms ease, transform 150ms ease;
+        }
+
+        .secondary-btn:hover {
+            background: rgba(255, 255, 255, 0.04);
+            transform: translateY(-1px);
+        }
+
+        .secondary-btn:active {
+            transform: translateY(0);
+        }
+
+        .preview-frame {
+            width: 100%;
+            height: 70vh;
+            border: 1px solid var(--line-clr);
+            border-radius: 1em;
+            background: #0f111a;
+        }
+
+        .preview-image {
+            width: 100%;
+            height: 70vh;
+            object-fit: contain;
+            border: 1px solid var(--line-clr);
+            border-radius: 1em;
+            background: #0f111a;
+        }
+
+        .download-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0.75rem;
+        }
+
+        /* Mobile Card Layout */
+        .timeout-card {
+            display: none;
+        }
+
+        .timeout-cards-container {
+            display: none;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .timeouts-container {
+                max-width: 100%;
+                padding: 0 1rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .timeouts-container {
+                padding: 0.5rem;
+                width: 20rem;
+                max-width: 100%;
+                margin: 0 auto;
+                box-sizing: border-box;
+            }
+
+            .timeouts-card {
+                padding: 1rem;
+                border-radius: 0.75em;
+            }
+
+            .header-row {
+                flex-direction: column;
+                gap: 0.75rem;
+                align-items: stretch;
+            }
+
+            .header-row h1 {
+                font-size: 1.4rem;
+                text-align: center;
+            }
+
+            .header-row p {
+                font-size: 0.85rem;
+                text-align: center;
+            }
+
+            .primary-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            /* Hide table on mobile, show cards */
+            .table-wrap {
+                display: none;
+            }
+
+            .timeout-cards-container {
+                display: flex;
+            }
+
+            .timeout-card {
+                display: block;
+                background: rgba(0, 0, 0, 0.15);
+                border-radius: 12px;
+                padding: 1rem;
+                border: 1px solid var(--line-clr);
+                transition: all 0.2s ease;
+            }
+
+            .timeout-card:active {
+                transform: scale(0.98);
+            }
+
+            .timeout-card-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 0.75rem;
+                gap: 0.5rem;
+            }
+
+            .timeout-card-date {
+                font-weight: 600;
+                color: #fff;
+                font-size: 0.95rem;
+            }
+
+            .timeout-card-block {
+                font-size: 0.8rem;
+                color: var(--secondary-text-clr);
+                margin-top: 0.25rem;
+            }
+
+            .timeout-card-body {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.75rem;
+                margin-bottom: 1rem;
+            }
+
+            .timeout-card-item {
+                display: flex;
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+
+            .timeout-card-label {
+                font-size: 0.7rem;
+                color: var(--secondary-text-clr);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .timeout-card-value {
+                font-size: 0.85rem;
+                color: var(--text-clr);
+            }
+
+            .timeout-card-reason {
+                background: rgba(255, 255, 255, 0.03);
+                border-radius: 8px;
+                padding: 0.75rem;
+                margin-bottom: 1rem;
+                border-left: 3px solid var(--accent-clr);
+            }
+
+            .timeout-card-reason-label {
+                font-size: 0.7rem;
+                color: var(--secondary-text-clr);
+                text-transform: uppercase;
+                margin-bottom: 0.25rem;
+            }
+
+            .timeout-card-reason-text {
+                font-size: 0.85rem;
+                color: var(--text-clr);
+            }
+
+            .timeout-card-response {
+                background: rgba(255, 140, 0, 0.1);
+                border-radius: 8px;
+                padding: 0.75rem;
+                margin-bottom: 1rem;
+                border-left: 3px solid #ff8c00;
+            }
+
+            .timeout-card-response-label {
+                font-size: 0.7rem;
+                color: #ff8c00;
+                text-transform: uppercase;
+                margin-bottom: 0.25rem;
+            }
+
+            .timeout-card-response-text {
+                font-size: 0.85rem;
+                color: #ff8c00;
+            }
+
+            .timeout-card-actions {
+                display: flex;
+                gap: 0.5rem;
+                flex-wrap: wrap;
+            }
+
+            .timeout-card-actions .icon-btn {
+                flex: 1;
+                min-width: 70px;
+                padding: 0.6rem 0.75rem;
+                text-align: center;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.5rem;
+                font-size: 0.85rem;
+                border-radius: 8px;
+            }
+
+            .timeout-card-actions .icon-btn i {
+                font-size: 0.9rem;
+            }
+
+            .status-badge {
+                font-size: 0.75rem;
+                padding: 0.2rem 0.6rem;
+            }
+
+            /* Modal improvements */
+            .modal-content {
+                width: 19rem;
+                max-width: 95%;
+                margin: 1rem auto;
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+
+            .modal-header {
+                padding: 1rem;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+                background: var(--base-clr);
+            }
+
+            .modal-header h3 {
+                font-size: 1rem;
+            }
+
+            .modal-close {
+                font-size: 1rem;
+                padding: 0.4rem 0.6rem;
+            }
+
+            .modal-body {
+                padding: 1rem;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .field label {
+                font-size: 0.85rem;
+            }
+
+            .field input,
+            .field textarea,
+            .field select {
+                padding: 0.6rem;
+                font-size: 0.9rem;
+            }
+
+            .modal-actions {
+                flex-direction: column-reverse;
+            }
+
+            .modal-actions button {
+                width: 100%;
+            }
+
+            .preview-frame,
+            .preview-image {
+                height: 50vh;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .timeouts-container {
+                padding: 0.25rem;
+                width: 20rem;
+                max-width: 100%;
+            }
+
+            .timeouts-card {
+                padding: 0.75rem;
+            }
+
+            .header-row h1 {
+                font-size: 1.25rem;
+            }
+
+            .header-row p {
+                font-size: 0.8rem;
+            }
+
+            .primary-btn {
+                padding: 0.6rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            .timeout-card {
+                padding: 0.75rem;
+            }
+
+            .timeout-card-header {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .timeout-card-date {
+                font-size: 0.9rem;
+            }
+
+            .timeout-card-body {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+
+            .timeout-card-actions {
+                gap: 0.35rem;
+            }
+
+            .timeout-card-actions .icon-btn {
+                padding: 0.5rem 0.5rem;
+                font-size: 0.75rem;
+                min-width: 60px;
+            }
+
+            .status-badge {
+                font-size: 0.7rem;
+                padding: 0.15rem 0.5rem;
+            }
+
+            .modal-content {
+                width: 18rem;
+            }
+
+            .modal-header {
+                padding: 0.75rem;
+            }
+
+            .modal-header h3 {
+                font-size: 0.95rem;
+            }
+
+            .modal-body {
+                padding: 0.75rem;
+            }
+
+            .field label {
+                font-size: 0.8rem;
+            }
+
+            .field input,
+            .field textarea,
+            .field select {
+                padding: 0.5rem;
+                font-size: 0.85rem;
+            }
+
+            .field textarea {
+                min-height: 100px;
+            }
+
+            .secondary-btn,
+            .primary-btn {
+                padding: 0.6rem 1rem;
+                font-size: 0.85rem;
+            }
+
+            .preview-frame,
+            .preview-image {
+                height: 40vh;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <?php require_once 'student_nav.php'; ?>
+    <main>
+        <div class="timeouts-container">
+            <div class="timeouts-card">
+                <div class="header-row">
+                    <div>
+                        <h1>Missing Timeouts</h1>
+                        <p>These are attendance records where you timed in but forgot to time out. Attach a supporting
+                            document and optional reason for each record.</p>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Block Type</th>
+                                <th>Time In</th>
+                                <th>Est. Hours</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timeoutsTbody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Cards Container -->
+                <div class="timeout-cards-container" id="timeoutCardsContainer"></div>
+            </div>
+        </div>
+
+        <!-- Attach Document Modal -->
+        <div id="attachModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="attachModalTitle">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="attachModalTitle">Attach Document</h3>
+                    <button class="modal-close" type="button" data-close-modal="attachModal" aria-label="Close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="attachForm">
+                        <input type="hidden" id="recordId" name="record_id">
+                        <div class="form-grid">
+                            <div class="field">
+                                <label>Date</label>
+                                <input id="recordDate" type="text" readonly>
+                            </div>
+                            <div class="field">
+                                <label>Block Type</label>
+                                <input id="recordBlockType" type="text" readonly>
+                            </div>
+                            <div class="field">
+                                <label>Time In</label>
+                                <input id="recordTimeIn" type="text" readonly>
+                            </div>
+
+                            <div class="field" style="grid-column: 1 / -1;">
+                                <label for="reason">Reason (Optional)</label>
+                                <textarea id="reason" name="reason"
+                                    placeholder="Write your reason for missing timeout..."></textarea>
+                            </div>
+                            <div class="field" style="grid-column: 1 / -1;">
+                                <label for="letterFile">Upload Letter / Supporting Document</label>
+                                <input id="letterFile" name="letter" type="file" accept=".pdf,.doc,.docx,image/*">
+                                <span class="muted" style="font-size: .85rem;">Accepted: PDF, Word (.doc, .docx), or
+                                    Image</span>
+                            </div>
+                        </div>
+
+                        <div class="modal-actions">
+                            <button class="secondary-btn" type="button" data-close-modal="attachModal">Cancel</button>
+                            <button id="attachBtn" class="primary-btn" type="submit">
+                                <i class="fas fa-paperclip"></i>
+                                Attach Document
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Letter Preview Modal -->
+        <div id="previewModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="previewModalTitle">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="previewModalTitle">Letter Preview</h3>
+                    <button class="modal-close" type="button" data-close-modal="previewModal" aria-label="Close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="previewInfoSection"
+                        style="padding: 0.75rem; margin-bottom: 0.75rem; border: 1px solid var(--line-clr); border-radius: 0.75em; background: rgba(255,255,255,0.02);">
+                        <div
+                            style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                            <div><strong style="color: var(--accent-clr);">Your Reason:</strong> <span
+                                    id="previewReason" class="muted">-</span></div>
+                        </div>
+                        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.9rem;">
+                            <div><strong style="color: #ff8c00;">Instructor Response:</strong> <span
+                                    id="previewResponse" class="muted">-</span></div>
+                        </div>
+                    </div>
+                    <iframe id="letterPreviewFrame" class="preview-frame" style="display:none;"></iframe>
+                    <img id="letterPreviewImage" class="preview-image" style="display:none;" alt="Letter Preview">
+                    <div class="download-row">
+                        <a id="downloadLetter" class="primary-btn" href="#" download>
+                            <i class="fas fa-download"></i>
+                            Download
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script>
+        const initialTimeouts = <?php echo json_encode($timeout_data, JSON_UNESCAPED_SLASHES); ?>;
+        let timeouts = initialTimeouts.map((r) => ({
+            ...r,
+            reason: r.reason || '',
+            letter_file_name: r.letter_file_name || (r.letter_file_path ? r.letter_file_path.split('/').pop() : ''),
+        }));
+
+        const tbody = document.getElementById('timeoutsTbody');
+        const attachModal = document.getElementById('attachModal');
+        const previewModal = document.getElementById('previewModal');
+        let currentRecordId = null;
+
+        function openModal(modal) {
+            if (!modal) return;
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeModal(modal) {
+            if (!modal) return;
+            modal.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        function getStatusBadge(status) {
+            const s = (status || '').toLowerCase();
+            if (s === 'approved') return '<span class="status-badge status-approved">approved</span>';
+            if (s === 'rejected') return '<span class="status-badge status-rejected">rejected</span>';
+            return '<span class="status-badge status-pending">pending</span>';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        function formatTime(timeStr) {
+            if (!timeStr) return '-';
+
+            // Handle both "HH:MM:SS" and "YYYY-MM-DD HH:MM:SS" formats
+            let timePart = timeStr;
+
+            // If it contains a space, it's a DATETIME format, extract the time part
+            if (timeStr.includes(' ')) {
+                timePart = timeStr.split(' ')[1];
+            }
+
+            // Now split the time part (HH:MM:SS)
+            const [hours, minutes] = timePart.split(':');
+            const hour = parseInt(hours, 10);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour % 12 || 12;
+            return `${hour12}:${minutes} ${ampm}`;
+        }
+
+        function renderTable() {
+            const cardsContainer = document.getElementById('timeoutCardsContainer');
+
+            if (!tbody) return;
+
+            if (!timeouts.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="muted" style="padding: 1.25rem; text-align: center;">No missing timeout records found.</td></tr>';
+                if (cardsContainer) {
+                    cardsContainer.innerHTML = '<div class="muted" style="padding: 1.25rem; text-align: center;">No missing timeout records found.</div>';
+                }
+                return;
+            }
+
+            // Render table rows
+            tbody.innerHTML = timeouts.map((r) => {
+                const fileLabel = r.letter_file_name || 'View file';
+                const fileHref = r.letter_file_path || '#';
+                const hasDocument = !!r.letter_file_path;
+                const isApproved = (r.status || '').toLowerCase() === 'approved';
+
+                // Determine what to show in actions column
+                let actionsHtml = '';
+                if (hasDocument) {
+                    actionsHtml += `
+                        <button class="icon-btn view" type="button" title="View Document" aria-label="View Document" data-action="view" data-file="${fileHref}" data-filename="${fileLabel}" data-reason="${(r.reason || '').replace(/"/g, '&quot;')}" data-response="${(r.instructor_response || '').replace(/"/g, '&quot;')}">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    `;
+                }
+
+                if (isApproved) {
+                    // Approved status - don't show attach button
+                    if (!hasDocument) {
+                        actionsHtml += '<span class="muted" style="font-size: 0.8rem;">No document</span>';
+                    }
+                } else {
+                    // Not approved - show attach button
+                    actionsHtml += `
+                        <button class="icon-btn attach" type="button" title="${hasDocument ? 'Update Document' : 'Attach Document'}" aria-label="${hasDocument ? 'Update Document' : 'Attach Document'}" data-action="attach" data-id="${r.id}">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                    `;
+                }
+
+                // Estimated hours come from the server (uses the student's schedule,
+                // handles night shifts and overtime; old code only knew morning/afternoon)
+                const estHours = (r.estimated_hours !== null && r.estimated_hours !== undefined && Number(r.estimated_hours) > 0)
+                    ? Number(r.estimated_hours).toFixed(2) + ' hrs'
+                    : '-';
+
+                return `
+                    <tr data-id="${r.id}">
+                        <td>${formatDate(r.attendance_date)}</td>
+                        <td>${r.block_type || '-'}</td>
+                        <td>${formatTime(r.time_in)}</td>
+                        <td>${estHours}</td>
+                        <td>${r.status ? getStatusBadge(r.status) : '<span class="muted">Not submitted</span>'}</td>
+                        <td>
+                            <div class="action-buttons">
+                                ${actionsHtml}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Render mobile cards
+            if (cardsContainer) {
+                cardsContainer.innerHTML = timeouts.map((r) => {
+                    const fileLabel = r.letter_file_name || 'View file';
+                    const fileHref = r.letter_file_path || '#';
+                    const hasDocument = !!r.letter_file_path;
+                    const isApproved = (r.status || '').toLowerCase() === 'approved';
+
+                    // Determine what to show in card actions
+                    let cardActionsHtml = '';
+                    if (hasDocument) {
+                        cardActionsHtml += `
+                            <button class="icon-btn view" type="button" data-action="view" data-file="${fileHref}" data-filename="${fileLabel}" data-reason="${(r.reason || '').replace(/"/g, '&quot;')}" data-response="${(r.instructor_response || '').replace(/"/g, '&quot;')}">
+                                <i class="fas fa-eye"></i> View
+                            </button>
+                        `;
+                    }
+
+                    if (isApproved) {
+                        // Approved status - don't show attach button
+                        if (!hasDocument) {
+                            cardActionsHtml += '<span class="muted" style="font-size: 0.85rem; padding: 0.5rem;">No document attached</span>';
+                        }
+                    } else {
+                        // Not approved - show attach button
+                        cardActionsHtml += `
+                            <button class="icon-btn attach" type="button" data-action="attach" data-id="${r.id}">
+                                <i class="fas fa-paperclip"></i> ${hasDocument ? 'Update' : 'Attach'}
+                            </button>
+                        `;
+                    }
+
+                    return `
+                        <div class="timeout-card" data-id="${r.id}">
+                            <!-- Card Header -->
+                            <div class="timeout-card-header">
+                                <div>
+                                    <div class="timeout-card-date">
+                                        <i class="fas fa-calendar-alt" style="margin-right: 0.5rem; opacity: 0.7;"></i>
+                                        ${formatDate(r.attendance_date)}
+                                    </div>
+                                    <div class="timeout-card-block">${r.block_type || '-'}</div>
+                                </div>
+                                ${r.status ? getStatusBadge(r.status) : '<span class="status-badge status-pending">Not submitted</span>'}
+                            </div>
+                            
+                            <!-- Card Body -->
+                            <div class="timeout-card-body">
+                                <div class="timeout-card-item">
+                                    <span class="timeout-card-label">Time In</span>
+                                    <span class="timeout-card-value">${formatTime(r.time_in)}</span>
+                                </div>
+                                <div class="timeout-card-item">
+                                    <span class="timeout-card-label">Document</span>
+                                    <span class="timeout-card-value">
+                                        ${hasDocument ? `<a href="#" class="file-link" data-action="view" data-file="${fileHref}" data-filename="${fileLabel}" style="font-size: 0.85rem;"><i class="fas fa-file"></i> ${fileLabel.length > 15 ? fileLabel.substring(0, 15) + '...' : fileLabel}</a>` : '<span class="muted">Not attached</span>'}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            ${r.reason ? `
+                                <div class="timeout-card-reason">
+                                    <div class="timeout-card-reason-label"><i class="fas fa-comment-alt"></i> Reason</div>
+                                    <div class="timeout-card-reason-text">${r.reason}</div>
+                                </div>
+                            ` : ''}
+                            
+                            ${r.instructor_response ? `
+                                <div class="timeout-card-response">
+                                    <div class="timeout-card-response-label"><i class="fas fa-reply"></i> Instructor Response</div>
+                                    <div class="timeout-card-response-text">${r.instructor_response}</div>
+                                </div>
+                            ` : ''}
+                            
+                            <!-- Card Actions -->
+                            <div class="timeout-card-actions">
+                                ${cardActionsHtml}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function setPreview(fileUrl, fileName, reason, response) {
+            const frame = document.getElementById('letterPreviewFrame');
+            const img = document.getElementById('letterPreviewImage');
+            const dl = document.getElementById('downloadLetter');
+            const title = document.getElementById('previewModalTitle');
+
+            // Update info section
+            const reasonEl = document.getElementById('previewReason');
+            const responseEl = document.getElementById('previewResponse');
+            if (reasonEl) reasonEl.textContent = reason || 'No reason provided';
+            if (responseEl) responseEl.textContent = response || 'No response yet';
+
+            if (title) title.textContent = `Letter Preview - ${fileName || ''}`.trim();
+            if (dl) {
+                dl.href = fileUrl;
+                dl.setAttribute('download', fileName || 'letter');
+            }
+
+            const lower = (fileName || fileUrl || '').toLowerCase();
+            const isPdf = lower.endsWith('.pdf');
+            const isImage = lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.webp');
+            const isDoc = lower.endsWith('.doc') || lower.endsWith('.docx');
+
+            if (frame) frame.style.display = 'none';
+            if (img) img.style.display = 'none';
+
+            if (isPdf && frame) {
+                frame.src = fileUrl;
+                frame.style.display = 'block';
+            } else if (isImage && img) {
+                img.src = fileUrl;
+                img.style.display = 'block';
+            } else if (isDoc && frame) {
+                // Use Google Docs Viewer for Word documents
+                const fullUrl = new URL(fileUrl, window.location.href).href;
+                frame.src = 'https://docs.google.com/gview?url=' + encodeURIComponent(fullUrl) + '&embedded=true';
+                frame.style.display = 'block';
+            } else if (frame) {
+                frame.src = fileUrl;
+                frame.style.display = 'block';
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            const closeBtn = e.target.closest('[data-close-modal]');
+            if (closeBtn) {
+                const id = closeBtn.getAttribute('data-close-modal');
+                closeModal(document.getElementById(id));
+                return;
+            }
+
+            if (e.target === attachModal) closeModal(attachModal);
+            if (e.target === previewModal) closeModal(previewModal);
+
+            const actionEl = e.target.closest('[data-action]');
+            if (!actionEl) return;
+
+            const action = actionEl.getAttribute('data-action');
+            if (action === 'view') {
+                e.preventDefault();
+                const file = actionEl.getAttribute('data-file');
+                const name = actionEl.getAttribute('data-filename') || 'letter';
+                const reason = actionEl.getAttribute('data-reason') || '';
+                const response = actionEl.getAttribute('data-response') || '';
+                if (!file || file === '#') return;
+                setPreview(file, name, reason, response);
+                openModal(previewModal);
+                return;
+            }
+
+            if (action === 'attach') {
+                const id = actionEl.getAttribute('data-id');
+                const item = timeouts.find(t => String(t.id) === String(id));
+                if (!item) return;
+
+                currentRecordId = item.id;
+                const title = document.getElementById('attachModalTitle');
+                if (title) title.textContent = item.letter_file_path ? 'Update Document' : 'Attach Document';
+
+                const form = document.getElementById('attachForm');
+                form?.reset();
+
+                document.getElementById('recordId').value = item.id;
+                document.getElementById('recordDate').value = formatDate(item.attendance_date);
+                document.getElementById('recordBlockType').value = item.block_type || '';
+                document.getElementById('recordTimeIn').value = formatTime(item.time_in);
+                document.getElementById('reason').value = item.reason || '';
+
+                openModal(attachModal);
+                return;
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal(attachModal);
+                closeModal(previewModal);
+            }
+        });
+
+        document.getElementById('attachForm')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const recordId = document.getElementById('recordId')?.value;
+            const reason = document.getElementById('reason')?.value;
+            const fileInput = document.getElementById('letterFile');
+            const file = fileInput?.files?.[0];
+
+            const formData = new FormData();
+            formData.append('record_id', recordId);
+            formData.append('reason', reason);
+            if (file) formData.append('letter', file);
+
+            const btn = document.getElementById('attachBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+            btn.disabled = true;
+
+            fetch('student_timeouts.php', {
+                method: 'POST',
+                body: formData
+            })
+                .then(r => r.json())
+                .then(data => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+
+                    if (data.success) {
+                        alert(data.message);
+                        closeModal(attachModal);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    alert('An error occurred. Please try again.');
+                });
+        });
+
+        renderTable();
+    </script>
+</body>
+
+</html>

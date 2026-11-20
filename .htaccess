@@ -1,0 +1,20 @@
+# No folder listings anywhere in the project
+Options -Indexes
+
+# Block web access to secrets and project files that live in the project root
+# (.env, .git, accounts.txt, composer files, SQL dumps, logs).
+
+<FilesMatch "^\.|^accounts\.txt$|^composer\.(json|lock)$|\.(sql|log|md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+RedirectMatch 404 /\.git(/|$)
+
+# Composer libraries are server-side only
+RedirectMatch 404 /vendor(/|$)

@@ -1,0 +1,41 @@
+leaflet-mcp-server/
+vendor/
+node_modules/
+md/
+
+# Secrets - never commit
+.env
+config/email.php
+accounts.txt
+
+# Database: only the schema/demo dump and migrations are committed.
+# Real exports (with student data) stay local in database/exports/.
+database/*
+!database/.htaccess
+!database/ojt_db.sql
+!database/migrations/
+!database/test_prerequired_separation.sql
+
+# User uploads (photos, documents, letters) - personal data, never commit
+storage/uploads/*
+!storage/uploads/.htaccess
+!storage/uploads/header.png
+public/uploads/*
+!public/uploads/.htaccess
+
+# Logs and imported student lists
+logs/*.log
+logs/emails/
+storage/logs/*
+!storage/logs/.htaccess
+storage/csv/*
+!storage/csv/.htaccess
+public/images/*.csv
+# Real student/staff photos (not needed by the app)
+public/images/attendanceSample/
+public/images/profileSample/
+
+# OS junk
+desktop.ini
+Thumbs.db
+.DS_Store
