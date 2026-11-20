@@ -1,5 +1,7 @@
 <?php
 session_start();
+// Login + role check + CSRF protection
+require_once __DIR__ . '/../../app/middleware/requireInstructor.php';
 require_once '../../app/services/InstructorService.php';
 
 // Check auth

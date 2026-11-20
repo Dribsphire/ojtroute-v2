@@ -25,4 +25,5 @@ $authService->setNoCacheHeaders();
 // Require admin authentication (will redirect if not admin)
 $authService->requireAdmin('../admin_login.php');
 
-
+// Every POST from a logged-in page must carry the CSRF token
+require_once __DIR__ . '/csrf.php';
